@@ -1,19 +1,81 @@
+# Services/rotacion_service.py
+import pandas as pd
+
+from core.entities import ReglasEjecucion
+
+
 class RotacionService:
-    def __init__(self, repository):
-        self.repository = repository
+    def clasificar_y_segmentar_cartera(
+        self, df_universo: pd.DataFrame, reglas: ReglasEjecucion
+    ):
+        if df_universo.empty:
+            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    def procesar_cartera_actual(self):
-        # 1. Busca la siguiente cartera pendiente
-        cartera = self.repository.obtener_siguiente_cartera()
-        if not cartera:
-            return "No hay tareas pendientes."
+        # REGLA 1: MERCURIUS
+        estado_clean = df_universo["estado"].astype(str).str.strip().str.lower()
+        tel_clean = (
+            df_universo["telefono_verificado"].astype(str).str.strip().str.lower()
+        )
 
-        # 2. Obtiene todos los movimientos (los 15 o 50 que mencionaste)
-        movimientos = self.repository.obtener_movimientos(cartera["id_empresa"])
+        filtro_mercurius = (
+            (estado_clean.isin(["baja", "fallecido"]))
+            | (df_universo["telefono_verificado"].isna())
+            | (df_universo["telefono_verificado"] == "")
+            | (tel_clean == "none")
+        )
+        df_mercurius = df_universo[filtro_mercurius].copy()
+        df_mercurius["grupo_asignado"] = "MERCURIUS"
 
-        for mov in movimientos:
-            # Aquí vendrá la lógica del query de deudas mañana
-            self.repository.ejecutar_movimiento_db(mov)
-            self.repository.actualizar_estado_log(mov["id"], "PROCESADO")
+        df_sobrevivientes = df_universo[~filtro_mercurius].copy()
 
-        return f"Cartera {cartera['nombre_empresa']} procesada con éxito."
+        # REGLA 2: CGMSV
+        if reglas.mueve_cgmsv:
+            tel_sobrevivientes = (
+                df_sobrevivientes["telefono_verificado"]
+                .astype(str)
+                .str.strip()
+                .str.lower()
+            )
+            filtro_cgmsv = tel_sobrevivientes == "n"
+            df_cgmsv = df_sobrevivientes[filtro_cgmsv].copy()
+            df_cgmsv["grupo_asignado"] = "CGMSV"
+            df_aptos_final = df_sobrevivientes[~filtro_cgmsv].copy()
+        else:
+            df_cgmsv = pd.DataFrame()
+            df_aptos_final = df_sobrevivientes.copy()
+
+        return df_mercurius, df_cgmsv, df_aptos_final
+
+    def aplicar_rotacion_directa(
+        self, df_aptos: pd.DataFrame, reglas: ReglasEjecucion
+    ) -> pd.DataFrame:
+        """Asignación 1 a 1. Se ignora si es un pool."""
+        if df_aptos.empty or reglas.reparte_varios:
+            return pd.DataFrame()
+
+        df_ordenado = df_aptos.sort_values(by="monto", ascending=True).reset_index(
+            drop=True
+        )
+        df_a_repartir = df_ordenado.head(reglas.cantidad_movimiento).copy()
+        df_a_repartir["grupo_asignado"] = reglas.grupo_destino
+        return df_a_repartir
+
+    def aplicar_rotacion_equitativa(
+        self, df_compilado_global: pd.DataFrame, lista_destinos_unicos: list
+    ) -> pd.DataFrame:
+        """Asignación Round-Robin al gran pozo (Pool) de deudas."""
+        if df_compilado_global.empty or not lista_destinos_unicos:
+            return df_compilado_global
+
+        # El gran ordenamiento matemático: garantiza la equidad entre carteras combinadas
+        df_ordenado = df_compilado_global.sort_values(
+            by="monto", ascending=True
+        ).reset_index(drop=True)
+
+        num_destinos = len(lista_destinos_unicos)
+        asignaciones = [
+            lista_destinos_unicos[idx % num_destinos] for idx in range(len(df_ordenado))
+        ]
+
+        df_ordenado["grupo_asignado"] = asignaciones
+        return df_ordenado
