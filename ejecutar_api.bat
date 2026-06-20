@@ -1,0 +1,3 @@
+@echo off
+echo Iniciando API FastAPI en http://localhost:8001 ...
+venv\Scripts\uvicorn api.main:app --reload --host 0.0.0.0 --port 8001

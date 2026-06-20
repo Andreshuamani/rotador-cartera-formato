@@ -12,10 +12,10 @@ class SQLRepository:
         cursor = conn.cursor()
 
         query = """
-            SELECT id_empresa, nombre_empresa 
-            FROM public.tabla_rotaciones 
-            WHERE estado_rotacion = 'Pendiente' 
-            ORDER BY fecha_creacion ASC 
+            SELECT id_empresa, nombre_empresa
+            FROM public.ordenes_rotacion
+            WHERE estado_rotacion = 'Pendiente'
+            ORDER BY fecha_creacion ASC
             LIMIT 1;
         """
 
@@ -37,9 +37,9 @@ class SQLRepository:
         cursor = conn.cursor()
 
         query = """
-            SELECT id, nombre_empresa, id_empresa, grupo_origen, grupo_destino, 
+            SELECT id, nombre_empresa, id_empresa, grupo_origen, grupo_destino,
                    cantidad_movimiento, mueve_cgmsv, mueve_mercurius, reparte_varios
-            FROM public.tabla_rotaciones 
+            FROM public.ordenes_rotacion
             WHERE id_empresa = %s AND estado_rotacion = 'Pendiente'
             ORDER BY fecha_creacion ASC;
         """
@@ -76,7 +76,7 @@ class SQLRepository:
         cursor = conn.cursor()
 
         query = """
-            UPDATE public.tabla_rotaciones 
+            UPDATE public.ordenes_rotacion
             SET estado_rotacion = 'Procesado',
                 cantidad_movimiento = %s
             WHERE id = %s;
