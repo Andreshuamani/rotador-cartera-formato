@@ -26,6 +26,9 @@ export interface Movimiento {
   mueve_cgmsv: boolean;
   mueve_mercurius: boolean;
   reparte_varios: boolean;
+  casos_evaluados: number;
+  casos_excluidos_cgmsv: number;
+  casos_excluidos_mercurius: number;
   estado_rotacion: string;
   fecha_rotacion: string | null;
   fecha_creacion: string;
@@ -34,6 +37,31 @@ export interface Movimiento {
 export interface MovimientosResponse {
   total: number;
   movimientos: Movimiento[];
+}
+
+export interface ExclusionesCartera {
+  casos_evaluados: number;
+  casos_excluidos_cgmsv: number;
+  casos_excluidos_mercurius: number;
+  casos_a_rotar: number;
+}
+
+export interface ReglasExclusion {
+  mueve_cgmsv: boolean;
+  excluye_fallecido: boolean;
+  excluye_sin_telefono: boolean;
+}
+
+export interface FilaPreview extends ExclusionesCartera, ReglasExclusion {
+  grupo_origen: string;
+  grupo_destino: string;
+  casos_excluidos_fallecido: number;
+  casos_excluidos_sin_telefono: number;
+}
+
+export interface PrevisualizarResponse {
+  filas: FilaPreview[];
+  totales: ExclusionesCartera;
 }
 
 export interface HistorialItem {

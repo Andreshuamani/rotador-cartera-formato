@@ -4,9 +4,9 @@ import { useState } from "react";
 import EmpresaCombobox, { type EmpresaOption } from "@/components/EmpresaCombobox";
 import MovimientosModal, {
   type CarteraIngresada,
-  type FilaMovimiento,
   type GrupoDestino,
 } from "@/components/MovimientosModal";
+import type { FilaPreview, PrevisualizarResponse } from "@/lib/types";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const NO_ROTA = "NO ROTA";
@@ -32,9 +32,15 @@ export default function MovimientosPage() {
   const [gruposDestino, setGruposDestino] = useState<GrupoDestino[]>([]);
   const [buscando, setBuscando] = useState(false);
 
+  // --- Exclusiones a nivel cartera (informe 5.2): se definen una vez por solicitud ---
+  const [mueveCgmsv, setMueveCgmsv] = useState(false);
+  const [excluyeFallecido, setExcluyeFallecido] = useState(true);
+  const [excluyeSinTelefono, setExcluyeSinTelefono] = useState(true);
+
   // --- Estado del carrito de movimientos ---
   const [carteras, setCarteras] = useState<CarteraIngresada[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [previsualizando, setPrevisualizando] = useState(false);
 
   // --- Búsqueda ---
   async function handleBuscar() {
@@ -65,31 +71,51 @@ export default function MovimientosPage() {
     setFilas((prev) => prev.map((f, i) => (i === index ? { ...f, destino } : f)));
   }
 
-  // --- Agregar al carrito (SIN llamada a API todavía) ---
-  function handleAgregar() {
+  // --- Agregar al carrito: calcula las exclusiones a nivel cartera (informe 5.2) ---
+  async function handleAgregar() {
     const aRotar = filas.filter((f) => f.destino !== NO_ROTA);
     if (!busqueda || aRotar.length === 0) return;
 
-    const nuevasFilas: FilaMovimiento[] = aRotar.map((f) => ({
-      grupo_origen: f.grupo,
-      grupo_destino: f.destino,
-      cantidad: f.cantidad,
-    }));
+    setPrevisualizando(true);
+    try {
+      const preview: PrevisualizarResponse = await fetch(`${API}/api/movimientos/previsualizar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_empresa: busqueda.id_empresa,
+          nombre_empresa: busqueda.empresa,
+          filas: aRotar.map((f) => ({
+            grupo_origen: f.grupo,
+            grupo_destino: f.destino,
+            mueve_cgmsv: mueveCgmsv,
+            excluye_fallecido: excluyeFallecido,
+            excluye_sin_telefono: excluyeSinTelefono,
+          })),
+        }),
+      }).then((r) => r.json());
 
-    setCarteras((prev) => {
-      const idx = prev.findIndex((c) => c.empresa === busqueda.empresa);
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = { ...updated[idx], filas: [...updated[idx].filas, ...nuevasFilas] };
-        return updated;
-      }
-      return [...prev, { empresa: busqueda.empresa, id_empresa: busqueda.id_empresa, filas: nuevasFilas }];
-    });
+      const nuevasFilas: FilaPreview[] = preview.filas;
 
-    setFormKey((k) => k + 1);
-    setEmpresaSel(null);
-    setBusqueda(null);
-    setFilas([]);
+      setCarteras((prev) => {
+        const idx = prev.findIndex((c) => c.empresa === busqueda.empresa);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], filas: [...updated[idx].filas, ...nuevasFilas] };
+          return updated;
+        }
+        return [...prev, { empresa: busqueda.empresa, id_empresa: busqueda.id_empresa, filas: nuevasFilas }];
+      });
+
+      setFormKey((k) => k + 1);
+      setEmpresaSel(null);
+      setBusqueda(null);
+      setFilas([]);
+      setMueveCgmsv(false);
+      setExcluyeFallecido(true);
+      setExcluyeSinTelefono(true);
+    } finally {
+      setPrevisualizando(false);
+    }
   }
 
   // --- Editar grupo destino desde el modal ---
@@ -116,7 +142,12 @@ export default function MovimientosPage() {
     );
   }
 
-  // --- Cargar Rotaciones (llamada real a la API desde el modal) ---
+  // --- Eliminar la cartera completa desde el modal ---
+  function handleDeleteCartera(empresa: string) {
+    setCarteras((prev) => prev.filter((c) => c.empresa !== empresa));
+  }
+
+  // --- OK, enviar a TI (llamada real a la API desde el modal) ---
   async function handleCargar() {
     const todos = carteras.flatMap((c) =>
       c.filas.map((f) => ({
@@ -124,7 +155,9 @@ export default function MovimientosPage() {
         nombre_empresa: c.empresa,
         grupo_origen: f.grupo_origen,
         grupos_destino: [f.grupo_destino],
-        cantidad_movimiento: f.cantidad,
+        mueve_cgmsv: f.mueve_cgmsv,
+        excluye_fallecido: f.excluye_fallecido,
+        excluye_sin_telefono: f.excluye_sin_telefono,
       }))
     );
 
@@ -157,6 +190,7 @@ export default function MovimientosPage() {
           }}
           onUpdateFila={handleUpdateFila}
           onDeleteFila={handleDeleteFila}
+          onDeleteCartera={handleDeleteCartera}
         />
       )}
 
@@ -164,130 +198,184 @@ export default function MovimientosPage() {
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-xl font-bold text-zinc-800">Movimientos</h2>
-            <p className="text-sm text-zinc-500">Seleccioná una empresa y configurá la rotación</p>
+            <h2 className="text-xl font-bold text-zinc-800">Nueva solicitud de rotación</h2>
+            <p className="text-sm text-zinc-500">Iniciada por Operaciones</p>
           </div>
 
           {totalMovimientos > 0 && (
             <button
               onClick={() => setModalOpen(true)}
-              className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-100"
+              className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
             >
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-green-600 text-xs font-bold text-white">
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
                 {totalMovimientos}
               </span>
-              Movimientos ingresados
+              Ver vista previa
             </button>
           )}
         </div>
 
-        {/* Selección de empresa */}
-        <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Seleccionar empresa
-          </h3>
-          <div className="flex items-end gap-3">
-            <EmpresaCombobox
-              key={formKey}
-              onSelect={(emp) => {
-                setEmpresaSel(emp);
-                setBusqueda(null);
-                setFilas([]);
-              }}
-            />
-            <button
-              onClick={handleBuscar}
-              disabled={!empresaSel || buscando}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {buscando ? "Buscando..." : "Buscar"}
-            </button>
-          </div>
-        </section>
-
-        {/* Tabla de grupos */}
-        {busqueda && filas.length > 0 && (
-          <section className="rounded-xl border border-zinc-200 bg-white shadow-sm">
-            <div className="border-b border-zinc-100 px-5 py-4">
-              <p className="text-sm font-semibold text-zinc-700">{busqueda.empresa}</p>
-              <p className="text-xs text-zinc-400">
-                Los grupos en <span className="font-semibold">NO ROTA</span> no se incluirán
-              </p>
-            </div>
-
-            <table className="w-full text-left">
-              <thead className="bg-zinc-50">
-                <tr>
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                    Grupo origen
-                  </th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                    Casos
-                  </th>
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                    Grupo destino
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((fila, i) => {
-                  const rota = fila.destino !== NO_ROTA;
-                  return (
-                    <tr
-                      key={fila.grupo}
-                      className={`border-t border-zinc-100 transition-colors ${rota ? "bg-blue-50/50" : ""}`}
-                    >
-                      <td className="px-5 py-3 text-sm font-medium text-zinc-800">{fila.grupo}</td>
-                      <td className="px-5 py-3 text-right text-sm font-bold text-zinc-600">
-                        {fila.cantidad.toLocaleString("es-PE")}
-                      </td>
-                      <td className="px-5 py-3">
-                        <select
-                          value={fila.destino}
-                          onChange={(e) => setDestino(i, e.target.value)}
-                          className={`rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 ${
-                            rota
-                              ? "border-blue-400 font-medium text-blue-700 focus:border-blue-500"
-                              : "border-zinc-300 text-zinc-500 focus:border-blue-500"
-                          }`}
-                        >
-                          <option value={NO_ROTA}>NO ROTA</option>
-                          {gruposDestino.map((g) => (
-                            <option key={g.id} value={g.nombre}>
-                              {g.nombre}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            <div className="flex items-center justify-between border-t border-zinc-100 px-5 py-4">
-              <p className="text-xs text-zinc-400">
-                {aRotar > 0
-                  ? `${aRotar} grupo(s) marcado(s) para rotar`
-                  : "Ningún grupo seleccionado"}
-              </p>
+        {/* Tarjeta principal: cartera, grupos origen y exclusiones */}
+        <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="max-w-sm">
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Cartera
+            </label>
+            <div className="flex items-end gap-3">
+              <EmpresaCombobox
+                key={formKey}
+                onSelect={(emp) => {
+                  setEmpresaSel(emp);
+                  setBusqueda(null);
+                  setFilas([]);
+                }}
+              />
               <button
-                onClick={handleAgregar}
-                disabled={aRotar === 0}
-                className="rounded-lg bg-green-600 px-5 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={handleBuscar}
+                disabled={!empresaSel || buscando}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Agregar movimiento
+                {buscando ? "Buscando..." : "Buscar"}
               </button>
             </div>
-          </section>
-        )}
+          </div>
 
-        {busqueda && filas.length === 0 && (
-          <p className="text-sm text-zinc-400">
-            Esta empresa no tiene grupos con casos en la base de datos.
-          </p>
-        )}
+          {busqueda && filas.length > 0 && (
+            <>
+              <h3 className="mb-3 mt-6 text-sm font-bold text-zinc-800">
+                Grupos origen de {busqueda.empresa}
+              </h3>
+
+              <table className="w-full text-left">
+                <thead>
+                  <tr>
+                    <th className="border-b border-zinc-200 pb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                      Grupo origen
+                    </th>
+                    <th className="border-b border-zinc-200 pb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                      Casos actuales
+                    </th>
+                    <th className="border-b border-zinc-200 pb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                      Grupo destino
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filas.map((fila, i) => {
+                    const rota = fila.destino !== NO_ROTA;
+                    return (
+                      <tr key={fila.grupo} className="border-b border-zinc-100">
+                        <td className="py-3 text-sm text-zinc-800">{fila.grupo}</td>
+                        <td className="py-3 text-sm text-zinc-600">
+                          {fila.cantidad.toLocaleString("es-PE")} casos
+                        </td>
+                        <td className="py-3">
+                          <select
+                            value={fila.destino}
+                            onChange={(e) => setDestino(i, e.target.value)}
+                            className={`rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 ${
+                              rota
+                                ? "border-zinc-300 font-medium text-zinc-800 focus:border-blue-500"
+                                : "border-zinc-200 text-zinc-400 focus:border-blue-500"
+                            }`}
+                          >
+                            <option value={NO_ROTA}>NO ROTA</option>
+                            {gruposDestino.map((g) => (
+                              <option key={g.id} value={g.nombre}>
+                                {g.nombre}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* Exclusiones a nivel cartera */}
+              <div className="mt-6">
+                <h3 className="text-sm font-bold text-zinc-800">Exclusiones a nivel cartera</h3>
+                <p className="mb-3 text-xs text-zinc-500">
+                  Se aplican a todos los grupos seleccionados arriba
+                </p>
+
+                <div className="space-y-2.5">
+                  <ExclusionCheckbox
+                    label="Telefonos no verificados"
+                    destino="CGMSV"
+                    checked={mueveCgmsv}
+                    onChange={setMueveCgmsv}
+                  />
+                  <ExclusionCheckbox
+                    label="Estado Fallecido/Baja"
+                    destino="MERCURIUS"
+                    checked={excluyeFallecido}
+                    onChange={setExcluyeFallecido}
+                  />
+                  <ExclusionCheckbox
+                    label="Sin numero de telefono"
+                    destino="MERCURIUS"
+                    checked={excluyeSinTelefono}
+                    onChange={setExcluyeSinTelefono}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <button
+                  onClick={handleAgregar}
+                  disabled={aRotar === 0 || previsualizando}
+                  className="rounded-lg border border-blue-600 bg-white px-5 py-2 text-sm font-bold text-blue-700 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {previsualizando ? "Calculando exclusiones..." : "Guardar y generar vista previa"}
+                </button>
+                <p className="mt-2 text-xs text-zinc-400">
+                  El sistema calculará los casos finales y los mostrará en una vista previa.
+                </p>
+              </div>
+            </>
+          )}
+
+          {busqueda && filas.length === 0 && (
+            <p className="mt-6 text-sm text-zinc-400">
+              Esta empresa no tiene grupos con casos en la base de datos.
+            </p>
+          )}
+        </section>
       </div>
     </>
+  );
+}
+
+function ExclusionCheckbox({
+  label,
+  destino,
+  checked,
+  onChange,
+}: {
+  label: string;
+  destino: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-3 text-sm">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+      />
+      <span className="text-zinc-700">{label}</span>
+      <span className="text-zinc-300">{"->"}</span>
+      <span
+        className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
+          checked ? "bg-zinc-200 text-zinc-700" : "bg-zinc-100 text-zinc-400"
+        }`}
+      >
+        {destino}
+      </span>
+    </label>
   );
 }

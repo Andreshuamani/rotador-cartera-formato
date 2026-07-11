@@ -18,17 +18,16 @@ def get_dashboard_estudios():
     conn = obtener_conexion()
     cursor = conn.cursor()
 
-    # Casos actuales por portafolio y agencia (último movimiento por deudor)
+    # Casos actuales por empresa (portafolio) y grupo, desde el universo real de deudas
     cursor.execute(
         """
-        SELECT p.nombre AS portafolio, m.agencia_a AS grupo, COUNT(DISTINCT m.deudor_id) AS cantidad
-        FROM public.movimientos m
-        JOIN public.portafolios p ON p.id = m.portafolio_id
-        WHERE m.id IN (
-            SELECT MAX(id) FROM public.movimientos GROUP BY deudor_id
-        )
-        GROUP BY p.nombre, m.agencia_a
-        ORDER BY p.nombre, cantidad DESC
+        SELECT em.nombre AS portafolio, gr.nombre AS grupo,
+               COUNT(*) AS cantidad, COALESCE(SUM(d.monto), 0) AS total_monto
+        FROM public.deudas d
+        JOIN public.empresas em ON em.id = d.empresa_id
+        JOIN public.grupos gr ON gr.id = d.grupo_id
+        GROUP BY em.nombre, gr.nombre
+        ORDER BY em.nombre, cantidad DESC
         """
     )
     rows_grupos = cursor.fetchall()
@@ -55,11 +54,12 @@ def get_dashboard_estudios():
 
     # Agrupar por portafolio
     carteras: dict = {}
-    for portafolio, grupo, cantidad in rows_grupos:
+    for portafolio, grupo, cantidad, total_monto in rows_grupos:
         if portafolio not in carteras:
             carteras[portafolio] = {}
         carteras[portafolio][grupo] = {
             "casos_actuales": cantidad,
+            "total_monto": float(total_monto),
             "casos_asignados_mes": hist_idx.get(portafolio, {}).get(grupo, 0),
         }
 
@@ -70,6 +70,7 @@ def get_dashboard_estudios():
                 {
                     "grupo": grupo,
                     "casos_actuales": data["casos_actuales"],
+                    "total_monto": data["total_monto"],
                     "casos_asignados_mes": data["casos_asignados_mes"],
                 }
                 for grupo, data in grupos.items()

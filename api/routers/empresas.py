@@ -47,10 +47,12 @@ def get_grupos_origen(id_empresa: str):
 
     cursor.execute(
         """
-        SELECT grupo_nombre, cantidad_simulada
-        FROM public.empresa_grupos_mock
-        WHERE empresa_id = %s
-        ORDER BY cantidad_simulada DESC
+        SELECT gr.nombre, COUNT(*) AS cantidad
+        FROM public.deudas d
+        JOIN public.grupos gr ON gr.id = d.grupo_id
+        WHERE d.empresa_id = %s
+        GROUP BY gr.nombre
+        ORDER BY cantidad DESC
         """,
         [id_empresa],
     )
