@@ -1,0 +1,26 @@
+
+> dashboard@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.9 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.18.75:3000
+✓ Ready in 414ms
+
+ GET /movimientos 200 in 262ms (next.js: 131ms, application-code: 131ms)
+ GET / 307 in 372ms (next.js: 264ms, application-code: 108ms)
+ GET /dashboard 200 in 141ms (next.js: 25ms, application-code: 116ms)
+ GET /movimientos 200 in 18ms (next.js: 4ms, application-code: 15ms)
+✓ Compiled in 62ms
+ GET /movimientos 200 in 119ms (next.js: 56ms, application-code: 62ms)
+✓ Compiled in 24ms
+ GET /movimientos 200 in 104ms (next.js: 52ms, application-code: 52ms)
+✓ Compiled in 51ms
+ GET /movimientos 200 in 108ms (next.js: 57ms, application-code: 51ms)
+ GET /movimientos 200 in 88ms (next.js: 5ms, application-code: 84ms)
+ GET /movimientos 200 in 26ms (next.js: 5ms, application-code: 21ms)
+✓ Compiled in 26ms
+ GET /movimientos 200 in 112ms (next.js: 64ms, application-code: 48ms)
+✓ Compiled in 35ms
+ GET /movimientos 200 in 124ms (next.js: 51ms, application-code: 73ms)
+ GET /movimientos 200 in 87ms (next.js: 5ms, application-code: 82ms)

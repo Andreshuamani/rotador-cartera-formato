@@ -40,9 +40,12 @@ def realizar_test_rotacion():
         reglas = ReglasEjecucion(
             grupo_origen=mov["grupo_origen"],
             grupo_destino=mov["grupo_destino"],
-            cantidad_movimiento=mov["cantidad_movement"],
+            cantidad_movimiento=mov["cantidad_movimiento"],
             mueve_cgmsv=mov["mueve_cgmsv"],
-            mueve_mercurius=mov["mueve_mercurius"],
+            # La orden solo guarda un flag combinado de MERCURIUS; ambas
+            # sub-reglas se aplican juntas al ejecutar el batch.
+            excluye_fallecido=mov["mueve_mercurius"],
+            excluye_sin_telefono=mov["mueve_mercurius"],
             reparte_varios=mov["reparte_varios"],
         )
 
@@ -52,7 +55,7 @@ def realizar_test_rotacion():
         )
 
         # 2. Clasificamos
-        df_merc, df_cg, df_aptos = servicio.clasificar_y_segmentar_cartera(
+        df_merc, df_cg, df_aptos, _ = servicio.clasificar_y_segmentar_cartera(
             df_universo, reglas
         )
 
@@ -109,7 +112,7 @@ def realizar_test_rotacion():
             print(df_rotados[["monto", "grupo", "grupo_asignado"]].head(10))
 
             # Simulando el conteo de equidad
-            conteo = df_rotados["grupo_asignado"].value_cs()
+            conteo = df_rotados["grupo_asignado"].value_counts()
             print("\n⚖️ EQUIDAD DE DISTRIBUCIÓN FINAL:")
             print(conteo)
 

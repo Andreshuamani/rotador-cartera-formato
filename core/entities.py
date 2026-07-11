@@ -15,7 +15,8 @@ class ReglasEjecucion:
     grupo_destino: str
     cantidad_movimiento: int
     mueve_cgmsv: bool
-    mueve_mercurius: bool
+    excluye_fallecido: bool
+    excluye_sin_telefono: bool
     reparte_varios: bool
 
     def obtener_destinos_como_lista(self) -> List[str]:

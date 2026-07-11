@@ -9,20 +9,33 @@ class RotacionService:
         self, df_universo: pd.DataFrame, reglas: ReglasEjecucion
     ):
         if df_universo.empty:
-            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), {"fallecido": 0, "sin_telefono": 0}
 
-        # REGLA 1: MERCURIUS
+        # REGLA 1: MERCURIUS (Estado Fallecido/Baja y/o sin teléfono, cada una
+        # habilitable de forma independiente por el usuario en la solicitud)
         estado_clean = df_universo["estado"].astype(str).str.strip().str.lower()
         tel_clean = (
             df_universo["telefono_verificado"].astype(str).str.strip().str.lower()
         )
 
-        filtro_mercurius = (
-            (estado_clean.isin(["baja", "fallecido"]))
-            | (df_universo["telefono_verificado"].isna())
-            | (df_universo["telefono_verificado"] == "")
-            | (tel_clean == "none")
+        sin_filtro = pd.Series(False, index=df_universo.index)
+
+        filtro_fallecido = (
+            estado_clean.isin(["baja", "fallecido"])
+            if reglas.excluye_fallecido
+            else sin_filtro
         )
+        filtro_sin_telefono = (
+            (
+                df_universo["telefono_verificado"].isna()
+                | (df_universo["telefono_verificado"] == "")
+                | (tel_clean == "none")
+            )
+            if reglas.excluye_sin_telefono
+            else sin_filtro
+        )
+
+        filtro_mercurius = filtro_fallecido | filtro_sin_telefono
         df_mercurius = df_universo[filtro_mercurius].copy()
         df_mercurius["grupo_asignado"] = "MERCURIUS"
 
@@ -44,7 +57,12 @@ class RotacionService:
             df_cgmsv = pd.DataFrame()
             df_aptos_final = df_sobrevivientes.copy()
 
-        return df_mercurius, df_cgmsv, df_aptos_final
+        desglose_mercurius = {
+            "fallecido": int(filtro_fallecido.sum()),
+            "sin_telefono": int(filtro_sin_telefono.sum()),
+        }
+
+        return df_mercurius, df_cgmsv, df_aptos_final, desglose_mercurius
 
     def aplicar_rotacion_directa(
         self, df_aptos: pd.DataFrame, reglas: ReglasEjecucion

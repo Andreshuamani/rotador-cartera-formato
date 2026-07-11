@@ -16,10 +16,16 @@ class DeudaRepository:
         La segmentación y descarte se procesarán en la capa de negocio.
         """
         query = """
-            SELECT id_deuda, nombre, telefono_verificado, monto, empresa, grupo, estado
-            FROM public.deudas
-            WHERE TRIM(empresa) ILIKE TRIM(%s) 
-              AND TRIM(grupo) ILIKE TRIM(%s);
+            SELECT d.id AS id_deuda, p.nombre AS nombre, big.tel_verif_1 AS telefono_verificado,
+                   d.monto AS monto, em.nombre AS empresa, gr.nombre AS grupo, e.nombre AS estado
+            FROM public.deudas d
+            JOIN public.personas p ON p.id = d.persona_id
+            JOIN public.empresas em ON em.id = d.empresa_id
+            JOIN public.grupos gr ON gr.id = d.grupo_id
+            JOIN public.estados e ON e.id = d.estado_id
+            LEFT JOIN public.bigfish big ON big.id = d.id
+            WHERE TRIM(em.nombre) ILIKE TRIM(%s)
+              AND TRIM(gr.nombre) ILIKE TRIM(%s);
         """
         conn = obtener_conexion()
         try:
