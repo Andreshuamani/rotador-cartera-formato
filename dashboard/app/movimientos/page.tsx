@@ -194,7 +194,7 @@ export default function MovimientosPage() {
         />
       )}
 
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="max-w-3xl space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
@@ -218,7 +218,7 @@ export default function MovimientosPage() {
         {/* Tarjeta principal: cartera, grupos origen y exclusiones */}
         <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div className="max-w-sm">
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            <label className="mb-1 block text-sm font-medium text-zinc-600">
               Cartera
             </label>
             <div className="flex items-end gap-3">
@@ -249,13 +249,13 @@ export default function MovimientosPage() {
               <table className="w-full text-left">
                 <thead>
                   <tr>
-                    <th className="border-b border-zinc-200 pb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                    <th className="border-b border-zinc-200 pb-2 text-sm font-semibold text-zinc-700">
                       Grupo origen
                     </th>
-                    <th className="border-b border-zinc-200 pb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                    <th className="border-b border-zinc-200 pb-2 text-sm font-semibold text-zinc-700">
                       Casos actuales
                     </th>
-                    <th className="border-b border-zinc-200 pb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                    <th className="border-b border-zinc-200 pb-2 text-sm font-semibold text-zinc-700">
                       Grupo destino
                     </th>
                   </tr>

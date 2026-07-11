@@ -1,19 +1,26 @@
-export interface Estudio {
-  grupo: string;
-  casos_actuales: number;
-  total_monto: number;
-  casos_asignados_mes: number;
+export interface MovimientoResumen {
+  grupo_origen: string;
+  grupo_destino: string;
+  casos_movidos: number;
+  monto_movido: number;
+  fecha: string;
 }
 
-export interface Cartera {
-  empresa: string;
-  estudios: Estudio[];
+export interface EmpresaResumen {
+  nombre_empresa: string;
+  movimientos: MovimientoResumen[];
 }
 
-export interface DashboardResponse {
+export interface DashboardResumenResponse {
   mes: number;
   anio: number;
-  carteras: Cartera[];
+  totales: {
+    casos_movidos: number;
+    monto_movido: number;
+    rotaciones: number;
+  };
+  empresas: EmpresaResumen[];
+  empresas_adicionales: string[];
 }
 
 export interface Movimiento {

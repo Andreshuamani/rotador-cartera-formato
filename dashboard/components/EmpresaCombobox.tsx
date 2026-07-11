@@ -54,9 +54,6 @@ export default function EmpresaCombobox({ onSelect }: Props) {
 
   return (
     <div ref={containerRef} className="relative w-full max-w-sm">
-      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        Empresa / Cartera
-      </label>
       <input
         type="text"
         value={query}

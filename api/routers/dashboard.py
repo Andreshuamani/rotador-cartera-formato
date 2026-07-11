@@ -4,12 +4,16 @@ from datetime import date
 
 router = APIRouter()
 
+EMPRESAS_DESTACADAS = 3
+MOVIMIENTOS_POR_EMPRESA = 2
 
-@router.get("/estudios")
-def get_dashboard_estudios():
+
+@router.get("/resumen-mes")
+def get_dashboard_resumen_mes():
     """
-    Para cada portafolio activo, muestra la distribución actual de deudores
-    por agencia (grupo/estudio), más los casos asignados este mes desde historial.
+    Resumen del mes actual para el Dashboard: totales (casos movidos, monto
+    movido, rotaciones) y el detalle de los movimientos más recientes por
+    empresa, tal como los procesó el motor (historial_rotaciones).
     """
     hoy = date.today()
     mes = hoy.month
@@ -18,65 +22,66 @@ def get_dashboard_estudios():
     conn = obtener_conexion()
     cursor = conn.cursor()
 
-    # Casos actuales por empresa (portafolio) y grupo, desde el universo real de deudas
     cursor.execute(
         """
-        SELECT em.nombre AS portafolio, gr.nombre AS grupo,
-               COUNT(*) AS cantidad, COALESCE(SUM(d.monto), 0) AS total_monto
-        FROM public.deudas d
-        JOIN public.empresas em ON em.id = d.empresa_id
-        JOIN public.grupos gr ON gr.id = d.grupo_id
-        GROUP BY em.nombre, gr.nombre
-        ORDER BY em.nombre, cantidad DESC
-        """
-    )
-    rows_grupos = cursor.fetchall()
-
-    # Casos asignados este mes desde historial
-    cursor.execute(
-        """
-        SELECT nombre_empresa, grupo_destino, SUM(cantidad_movida) AS casos_asignados
+        SELECT
+            COALESCE(SUM(cantidad_movida), 0) AS casos_movidos,
+            COALESCE(SUM(monto_movido), 0) AS monto_movido,
+            COUNT(*) AS rotaciones
         FROM public.historial_rotaciones
         WHERE mes = %s AND anio = %s
-        GROUP BY nombre_empresa, grupo_destino
         """,
         [mes, anio],
     )
-    rows_hist = cursor.fetchall()
+    casos_movidos, monto_movido, rotaciones = cursor.fetchone()
+
+    cursor.execute(
+        """
+        SELECT nombre_empresa, grupo_origen, grupo_destino, cantidad_movida,
+               monto_movido, fecha_ejecucion
+        FROM public.historial_rotaciones
+        WHERE mes = %s AND anio = %s
+        ORDER BY nombre_empresa, fecha_ejecucion DESC
+        """,
+        [mes, anio],
+    )
+    rows = cursor.fetchall()
 
     cursor.close()
     conn.close()
 
-    # Índice de asignaciones del mes
-    hist_idx: dict = {}
-    for empresa, grupo, asignados in rows_hist:
-        hist_idx.setdefault(empresa, {})[grupo] = asignados
+    por_empresa: dict = {}
+    for nombre_empresa, grupo_origen, grupo_destino, cantidad, monto, fecha in rows:
+        por_empresa.setdefault(nombre_empresa, []).append(
+            {
+                "grupo_origen": grupo_origen,
+                "grupo_destino": grupo_destino,
+                "casos_movidos": cantidad,
+                "monto_movido": float(monto),
+                "fecha": fecha.isoformat(),
+            }
+        )
 
-    # Agrupar por portafolio
-    carteras: dict = {}
-    for portafolio, grupo, cantidad, total_monto in rows_grupos:
-        if portafolio not in carteras:
-            carteras[portafolio] = {}
-        carteras[portafolio][grupo] = {
-            "casos_actuales": cantidad,
-            "total_monto": float(total_monto),
-            "casos_asignados_mes": hist_idx.get(portafolio, {}).get(grupo, 0),
-        }
+    nombres_empresas = sorted(por_empresa.keys())
+    destacadas = nombres_empresas[:EMPRESAS_DESTACADAS]
+    resto = nombres_empresas[EMPRESAS_DESTACADAS:]
 
-    result = [
+    empresas = [
         {
-            "empresa": portafolio,
-            "estudios": [
-                {
-                    "grupo": grupo,
-                    "casos_actuales": data["casos_actuales"],
-                    "total_monto": data["total_monto"],
-                    "casos_asignados_mes": data["casos_asignados_mes"],
-                }
-                for grupo, data in grupos.items()
-            ],
+            "nombre_empresa": nombre,
+            "movimientos": por_empresa[nombre][:MOVIMIENTOS_POR_EMPRESA],
         }
-        for portafolio, grupos in sorted(carteras.items())
+        for nombre in destacadas
     ]
 
-    return {"mes": mes, "anio": anio, "carteras": result}
+    return {
+        "mes": mes,
+        "anio": anio,
+        "totales": {
+            "casos_movidos": casos_movidos,
+            "monto_movido": float(monto_movido),
+            "rotaciones": rotaciones,
+        },
+        "empresas": empresas,
+        "empresas_adicionales": resto,
+    }
