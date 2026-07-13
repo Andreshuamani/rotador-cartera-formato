@@ -8,7 +8,7 @@ const NAV = [
   { href: "/movimientos", label: "Movimientos" },
   { href: "/historico", label: "Histórico" },
   { href: "/movimientos-mes", label: "Movimientos del mes" },
-  { href: "/bandeja-ti", label: "Bandeja TI" },
+  { href: "/motor", label: "Motor de movimiento" },
 ];
 
 export default function Sidebar() {

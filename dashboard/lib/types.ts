@@ -106,3 +106,77 @@ export interface MovimientosMesResponse {
   };
   detalle: MovimientosMesDetalle[];
 }
+
+export interface OrdenPendiente {
+  id: number;
+  nombre_empresa: string;
+  id_empresa: number;
+  grupo_origen: string;
+  grupo_destino: string;
+  cantidad_movimiento: number;
+  mueve_cgmsv: boolean;
+  mueve_mercurius: boolean;
+  reparte_varios: boolean;
+}
+
+export interface CarteraPendiente {
+  id_empresa: number;
+  nombre_empresa: string;
+  ordenes_pendientes: number;
+  casos_estimados: number;
+  primera_solicitud: string | null;
+  ordenes: OrdenPendiente[];
+}
+
+export interface PendientesResponse {
+  total_carteras: number;
+  carteras: CarteraPendiente[];
+}
+
+export interface DetalleEjecucion {
+  grupo_origen: string;
+  grupo_destino: string;
+  casos_movidos: number;
+  monto_movido: number;
+}
+
+export interface EjecucionResponse {
+  id_empresa: number;
+  nombre_empresa: string;
+  casos_movidos: number;
+  monto_movido: number;
+  detalle: DetalleEjecucion[];
+}
+
+export interface ResumenCarterasFormato {
+  id_empresa: number;
+  nombre_empresa: string;
+  grupo_origen: string;
+  grupo_destino: string;
+  casos: number;
+  monto: number;
+}
+
+export interface ObtenerCasosResponse {
+  lote_id: string;
+  total_casos: number;
+  total_monto: number;
+  resumen: ResumenCarterasFormato[];
+}
+
+export interface DetalleEjecucionCarterasFormato {
+  id_empresa: number;
+  nombre_empresa: string;
+  grupo_origen: string;
+  grupo_destino: string;
+  casos_movidos: number;
+  monto_movido: number;
+}
+
+export interface EjecutarLoteResponse {
+  lote_id: string;
+  casos_movidos: number;
+  monto_movido: number;
+  detalle: DetalleEjecucionCarterasFormato[];
+  stock: Record<string, unknown>[];
+}
